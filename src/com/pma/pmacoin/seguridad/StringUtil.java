@@ -52,14 +52,15 @@ public class StringUtil {
 	}
 
 	public static String getStringFromKey(Key key) {
-		return Base64.encodeBase64String(  key.getEncoded());
+		return Base64.encodeBase64String(key.getEncoded());
 	}
 	
-	public static Key getKeyFromString(String cadena) {
-		KeyFactory kf = null;
-		
-		
-		return (Key) Base64.decode  .decodeBase64(cadena);
+	public static String getStringFromByte(byte[] array) {
+		return Base64.encodeBase64String(array);
+	}
+	
+	public static byte[] getByteFromString(String cadena) {
+		return Base64.decodeBase64(cadena);
 		
 	}
 
@@ -73,6 +74,7 @@ public class StringUtil {
 			retorno = new SecretKeySpec(key, "AES"); //encriptado con algoritsmo estandar
 		}  catch (Exception e) {
 			e.printStackTrace();
+			throw new RuntimeException(e);
 		}
 		return retorno;
 	}
@@ -94,6 +96,24 @@ public class StringUtil {
 		}
 		return null;
 	}
+	
+	public static String cryptoKey(String strCrypto, Key key, boolean trx) {
+		try {
+			Cipher cipher = Cipher.getInstance("AES/ECB/PKCS5PADDING");
+			if (trx) {
+				cipher.init(Cipher.ENCRYPT_MODE, key);
+				return Base64.encodeBase64String(cipher.doFinal(strCrypto.getBytes("UTF-8")));
+			} else {
+				cipher.init(Cipher.DECRYPT_MODE, key);
+				return new String(cipher.doFinal(Base64.decodeBase64(strCrypto)));
+			}
+		} catch (Exception e) {
+			System.out.println("Error while crypto. Tx:" + trx + ". Err:" + e.toString());
+			
+		}
+		return null;
+	}
+	
 
 	public static String applySha256(String input) {
 		try {
@@ -168,3 +188,44 @@ public class StringUtil {
 	}
 
 }
+
+
+
+/*
+
+Signature dsa;
+dsa = Signature.getInstance("ECDSA", "BC");
+dsa.initSign((PrivateKey) publicKey);
+dsa.update(originalString.getBytes());
+byte[] realSig = new byte [0];
+realSig = dsa.sign();
+String encryptedString = Base64.encodeBase64String(realSig) ;
+
+
+	Signature ecdsaVerify = Signature.getInstance("ECDSA", "BC");
+	ecdsaVerify.initVerify((PublicKey) privateKey);
+	ecdsaVerify.update(originalString.getBytes());
+	boolean decryptedString = ecdsaVerify.verify(realSig);
+	
+	
+
+
+System.out.println("\nResumen:");
+System.out.println("Original     : " + originalString);
+System.out.println("Encriptada   : " + encryptedString);
+System.out.println("Desencriptada: " + decryptedString);
+
+
+		final String secretKey = "CARLOSs";
+		
+		String originalString = "howtodoinjava.com";
+		String encryptedString = StringUtil.crypto(originalString, secretKey,true) ;
+		String decryptedString = StringUtil.crypto(encryptedString, secretKey,false) ;
+		
+		System.out.println(originalString);
+		System.out.println(encryptedString);
+		System.out.println(decryptedString);
+		
+		
+		
+*/

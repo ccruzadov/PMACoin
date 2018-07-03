@@ -10,78 +10,87 @@ import java.io.FileWriter;
 import java.io.PrintWriter;
 import java.security.*;
 import java.security.spec.ECGenParameterSpec;
+import java.security.spec.EncodedKeySpec;
+import java.security.spec.PKCS8EncodedKeySpec;
+import java.security.spec.X509EncodedKeySpec;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 
 import org.apache.commons.codec.DecoderException;
+import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.codec.binary.Hex;
 import org.apache.commons.codec.binary.StringUtils;
-import org.bouncycastle.asn1.eac.PublicKeyDataObject;
 
 import com.pma.pmacoin.seguridad.StringUtil;
 
 public class Billetera {
 
 	public String duenoBilletera;
-	private String claveBilletera;
-	
 	//private PrivateKey privateKey;
 	//private PublicKey publicKey;
-	
 	public PrivateKey privateKey;
 	public PublicKey publicKey;
+	private byte[] cargaKeys;
 
 	public HashMap<String, TransaccionOutput> UTXOs = new HashMap<String, TransaccionOutput>();
-	
-	public Billetera(String duenoBlilletera, String clave){
-		String nombreAlmacen = StringUtil.applySha256(StringUtil.crypto(duenoBlilletera, clave, true)) + ".dat";
-		System.out.println(nombreAlmacen);
-		this.duenoBilletera = duenoBlilletera;
-		//this.claveBilletera = clave; //NO SE ALMACENA LA CLAVE
-		try {
-			File file = new File(nombreAlmacen);
-			System.out.println("Generando billetera...");		//creamos almacen
-			generateKeyPair();
-			if (privateKey != null && publicKey != null ){
-				//System.out.println("Usuario ya existe....cargando datos");
-				System.out.println(privateKey);
-				String publico = StringUtil.crypto(StringUtil.getStringFromKey(publicKey),clave,true);
-				String privado = StringUtil.crypto(StringUtil.getStringFromKey(privateKey),clave,true);
-				System.out.println(publico);
-				System.out.println(privado);
-				
-				FileOutputStream keyfos = new FileOutputStream(nombreAlmacen);
-				keyfos.write(publico.getBytes());
-				keyfos.write("\n".getBytes());
-				keyfos.write(privado.getBytes());
-				keyfos.close();
-			}
-			
-		    String cadena = "";
-		    FileReader f = new FileReader(nombreAlmacen);
-		      BufferedReader b = new BufferedReader(f);
-		      cadena = b.readLine();
-		      String priv = cadena;
-		      cadena = b.readLine();
-		      String pub = cadena;
-		      
-		      System.out.println(priv);
-		      System.out.println(pub);
-		      b.close();
-			
-			
-		} catch (Exception e){
-			e.printStackTrace();
-		}
-		
-		
-		
-		
-		
-		
-		
 
+	public Billetera(String duenoBlilletera, String claveBilletera) {
+		String nombreAlmacen = StringUtil.applySha256(StringUtil.crypto(duenoBlilletera, claveBilletera, true)) + ".DAT";
+		this.duenoBilletera = duenoBlilletera;
+		File file = new File(nombreAlmacen);
+		try {
+			
+			if(!file.exists()){
+				System.out.println("Generando nueva billetera..."); // creamos almacen
+				generateKeyPair();
+				cargaKeys = StringUtil.applyECDSASig(privateKey,nombreAlmacen);
+				//convert stirng
+				String publico = StringUtil.crypto(StringUtil.getStringFromKey(publicKey), claveBilletera, true);
+				String privado = StringUtil.crypto(StringUtil.getStringFromKey(privateKey), claveBilletera, true);
+				String carga   = StringUtil.crypto(StringUtil.getStringFromByte(cargaKeys), claveBilletera, true);
+				//Save in file
+				FileOutputStream keyfos = new FileOutputStream(nombreAlmacen);
+				keyfos.write(publico.getBytes()); keyfos.write("\n".getBytes());
+				keyfos.write(privado.getBytes());  keyfos.write("\n".getBytes());
+				keyfos.write(carga.getBytes()); keyfos.write("\n".getBytes());
+				//keyfos.write(StringUtil.getStringFromByte(cargaKeys).getBytes()); keyfos.write("\n".getBytes());
+				keyfos.close();
+				System.out.println("Generando nueva billetera...FIN"); // creamos almacen
+			}else{
+				System.out.println("Cargando datos de billetera..."); // creamos almacen
+				FileReader f = new FileReader(nombreAlmacen);
+				BufferedReader b = new BufferedReader(f);
+				String pub = b.readLine();
+				String priv = b.readLine();
+				String validaCarga = b.readLine();
+				b.close();	if (f!=null) f=null;  //Cerrando ficheros
+				byte[] bytepublico = StringUtil.getByteFromString(StringUtil.crypto(pub, claveBilletera, false)); //carga y desencripta
+				byte[] byteprivado = StringUtil.getByteFromString(StringUtil.crypto(priv, claveBilletera, false)); 
+				cargaKeys = StringUtil.getByteFromString(StringUtil.crypto(validaCarga, claveBilletera, false));
+				//Regenerando llaves
+				KeyFactory keyFactory = KeyFactory.getInstance("ECDSA", "BC");
+				X509EncodedKeySpec keySpec = new X509EncodedKeySpec(bytepublico); //recrea clave publica
+				publicKey = keyFactory.generatePublic(keySpec);
+				EncodedKeySpec privateKeySpec = new PKCS8EncodedKeySpec(byteprivado); //recrea clave privada
+				privateKey = keyFactory.generatePrivate(privateKeySpec);
+				if (privateKey != null && publicKey != null && cargaKeys != null) { //OK, validamos consistencia tanto en la firma como en la cadena
+					boolean  tempo = StringUtil.verifyECDSASig(publicKey, nombreAlmacen, cargaKeys);
+					System.out.println("Verificacion cargaKeys (publicKey): " + tempo + ". " + duenoBlilletera);
+				}
+				else{
+					System.out.println("ERROR. Cargando llaves desde archivo: " + duenoBlilletera + ". Deberá generar nueva billetera.");
+					privateKey = null; publicKey = null; cargaKeys = null;
+					Exception e = new Exception("ERROR"); throw new RuntimeException(e);
+				}
+			}
+		} catch (Exception e) {
+			e.printStackTrace();
+			throw new RuntimeException(e);
+		} finally{
+			if(file!=null) file = null;
+			System.out.println("Finally..."); // creamos almacen
+		}
 	}
 
 	public void generateKeyPair() {
@@ -89,7 +98,7 @@ public class Billetera {
 			KeyPairGenerator keyGen = KeyPairGenerator.getInstance("ECDSA", "BC");
 			SecureRandom random = SecureRandom.getInstance("SHA1PRNG");
 			ECGenParameterSpec ecSpec = new ECGenParameterSpec("prime192v1");
-			keyGen.initialize(ecSpec, random); // 256 bytes provides an acceptable security level
+			keyGen.initialize(ecSpec, random); // 256 bytes provides an
 			KeyPair keyPair = keyGen.generateKeyPair();
 			publicKey = keyPair.getPublic();
 			privateKey = keyPair.getPrivate();
@@ -99,7 +108,7 @@ public class Billetera {
 	}
 
 	public float getBalance() {
-		float total = 0;		//CERO
+		float total = 0; // CERO
 		for (Map.Entry<String, TransaccionOutput> item : Main.UTXOs.entrySet()) {
 			TransaccionOutput UTXO = item.getValue();
 			if (UTXO.isMine(publicKey)) { // if output belongs to me ( if coins

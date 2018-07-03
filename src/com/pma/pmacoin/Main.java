@@ -25,34 +25,18 @@ public class Main {
 	
 	public static void main(String[] args) {
 		
-		//String derivada =  StringUtil.applySha512("nanzana");
-		/*
-		final String secretKey = "CARLOSs";
-		
-		String originalString = "howtodoinjava.com";
-		String encryptedString = StringUtil.crypto(originalString, secretKey,true) ;
-		String decryptedString = StringUtil.crypto(encryptedString, secretKey,false) ;
-		
-		System.out.println(originalString);
-		System.out.println(encryptedString);
-		System.out.println(decryptedString);*/
-		
-		
-		
-		
-		
-		
-		
-		
 		// Setup Bouncey castle as a Security Provider
 		Security.addProvider(new org.bouncycastle.jce.provider.BouncyCastleProvider());
-		
 		System.out.println("Dificultad: " + dificultadTrabajo);
 		
 		
 		// Create the new wallets
-		walletA = new Billetera("Carlos","carlos");
+		walletA = new Billetera("CARLOS","carlos");
+		walletA = new Billetera("CRUZADO","carlos");
+		walletA = new Billetera("HUMBERTO","carlos");
+		walletA = new Billetera("VASQUEZ","carlos");
 		
+		System.out.println("Fin..."); // creamos almacen
 		if (true) return;
 		
 		
